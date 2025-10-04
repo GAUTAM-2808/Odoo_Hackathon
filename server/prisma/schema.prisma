@@ -1,0 +1,98 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Company {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  countryCode  String
+  currencyCode String
+  createdAt    DateTime @default(now())
+
+  users        User[]
+  expenses     Expense[]
+  rules        ApprovalRule[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("EMPLOYEE")
+  managerId    String?
+  manager      User?    @relation("UserManager", fields: [managerId], references: [id])
+  subordinates User[]   @relation("UserManager")
+  createdAt    DateTime @default(now())
+
+  approvals    Approval[]
+  expenses     Expense[]
+}
+
+model Expense {
+  id                 String         @id @default(cuid())
+  companyId          String
+  company            Company        @relation(fields: [companyId], references: [id])
+  userId             String
+  user               User           @relation(fields: [userId], references: [id])
+
+  description        String
+  category           String
+  expenseDate        DateTime
+
+  // Store money as integer cents for SQLite
+  amountOriginalCents Int
+  currencyOriginal     String
+  amountCompanyCents   Int
+  currencyCompany      String
+  conversionRate       Float
+
+  receiptUrl           String?
+  ocrText              String?
+  ocrVendor            String?
+  ocrDate              DateTime?
+  ocrAmountCents       Int?
+
+  status             String  @default("DRAFT")
+  currentOrderIndex  Int            @default(0)
+  totalApprovers     Int            @default(0)
+
+  approvals          Approval[]
+
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+}
+
+model Approval {
+  id          String         @id @default(cuid())
+  expenseId   String
+  expense     Expense        @relation(fields: [expenseId], references: [id])
+  approverId  String
+  approver    User           @relation(fields: [approverId], references: [id])
+  orderIndex  Int
+  status      String         @default("PENDING")
+  comment     String?
+  decidedAt   DateTime?
+  createdAt   DateTime       @default(now())
+
+  @@unique([expenseId, approverId])
+  @@index([expenseId, orderIndex])
+}
+
+model ApprovalRule {
+  id                 String           @id @default(cuid())
+  companyId          String
+  company            Company          @relation(fields: [companyId], references: [id])
+  type               String
+  percentage         Int?
+  specificApproverId String?
+  isActive           Boolean          @default(true)
+  createdAt          DateTime         @default(now())
+}
